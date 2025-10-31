@@ -1,7 +1,10 @@
 from app.models.whatsapp_webhook import WebhookPayload, Message
 from app.services.whatsapp_message_service import WhatsAppMessageService
 from app.services.whatsapp_flow_service import WhatsAppFlowService
+from app.services.langchain_agent_service import LangChainAgentService
+from app.logic.send_message import send_message
 import app.logic.sesion as sesion
+import os
 
 def handle_message(payload: WebhookPayload, db):
     """
@@ -100,19 +103,35 @@ def extract_message_text(msg: Message) -> str:
 
 def handle_user_interaction(msg: Message, usuario, db, message_service: WhatsAppMessageService, flow_service: WhatsAppFlowService):
     """
-    Maneja la interacción principal con usuarios registrados (texto e interactivos)
+    Maneja la interacción principal con usuarios registrados usando agente LangChain.
+    Ya no usa mensajes interactivos, sino conversación natural con Tool Use.
     """
     text = extract_message_text(msg)
     
+    # Actualizar estado a conversando si es la primera interacción
     if usuario.estado_chat.paso_actual == "inicial":
-        message_service.saludar_usuario_registrado(msg.from_, usuario.name)
+        # Ya no enviamos saludo manual, el agente lo maneja
+        sesion.actualizar_paso_chat(msg.from_, "conversando", db)
     
-    if usuario.rol == "conductor":
-        handle_conductor(text, msg.from_, db, flow_service)
-    elif usuario.rol == "gestor_parqueadero":
-        handle_gestor(text, msg.from_, db, flow_service)
-    else:
-        message_service.error_rol_no_reconocido(msg.from_)
+    # Usar el agente de LangChain para procesar el mensaje
+    agent_service = LangChainAgentService(db)
+    
+    try:
+        # Procesar mensaje con el agente según el rol
+        respuesta = agent_service.process_message(msg.from_, text, usuario.rol)
+        
+        # Enviar respuesta por WhatsApp (send_message ya tiene PHONE_NUMBER_ID internamente)
+        send_message(msg.from_, respuesta)
+        
+    except Exception as e:
+        print(f"Error en interacción con agente: {e}")
+        if usuario.rol == "conductor":
+            # Fallback al sistema anterior si hay error
+            handle_conductor(text, msg.from_, db, flow_service)
+        elif usuario.rol == "gestor_parqueadero":
+            handle_gestor(text, msg.from_, db, flow_service)
+        else:
+            message_service.error_rol_no_reconocido(msg.from_)
 
 def handle_conductor(text: str, user_id: str, db, flow_service: WhatsAppFlowService):
     """

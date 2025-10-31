@@ -31,3 +31,9 @@ def actualizar_contexto_temporal(wa_id: str, contexto: dict, db):
     """
     repo = UserRepository(db)
     return repo.actualizar_contexto_temporal(wa_id, contexto)
+
+def actualizar_paso_chat(wa_id: str, paso: str, db):
+    """
+    Actualiza el paso actual del chat del usuario
+    """
+    return actualizar_estado_chat(wa_id, paso, db)
