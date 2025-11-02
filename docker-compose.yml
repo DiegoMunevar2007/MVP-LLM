@@ -11,6 +11,17 @@ services:
     volumes:
       - ./data/db:/data/db
 
+  chromadb:
+    image: chromadb/chroma:0.5.23
+    container_name: chromadb
+    ports:
+      - "8001:8000"  # Puerto externo:interno (ChromaDB usa 8000 por defecto)
+    volumes:
+      - ./data/chroma:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+
   fastapi:
     build: ./app
     container_name: fastapi
@@ -24,8 +35,11 @@ services:
       - WHATSAPP_TOKEN=${WHATSAPP_TOKEN}
       - COHERE_API_KEY=${COHERE_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000  # Puerto interno de ChromaDB
     depends_on:
       - mongo
+      - chromadb
 
   ngrok:
     image: ngrok/ngrok:latest

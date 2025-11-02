@@ -12,6 +12,7 @@ from langchain_core.messages     import HumanMessage, AIMessage, SystemMessage
 from app.tools.parqueadero_tools import create_parqueadero_tools
 from app.tools.suscripcion_tools import create_suscripcion_tools
 from app.tools.gestor_tools import create_gestor_tools
+from app.tools.reporte_tools import create_reporte_tools
 from app.repositories.user_repositories import UserRepository
 
 
@@ -48,22 +49,37 @@ Tu rol es ayudar a conductores a encontrar parqueaderos con cupos disponibles y 
 **Tus capacidades incluyen:**
 - Consultar parqueaderos con cupos disponibles (usa la herramienta ver_parqueaderos_disponibles)
 - Mostrar detalles de parqueaderos específicos (usa obtener_detalle_parqueadero)
+- **BÚSQUEDA INTELIGENTE**: Buscar parqueaderos por descripción aproximada (usa buscar_parqueadero_semantico)
+- Buscar por nombre exacto (usa buscar_parqueadero_por_nombre)
 - Suscribir usuarios a parqueaderos para recibir notificaciones (usa suscribirse_a_parqueadero)
 - Ver y gestionar suscripciones activas (usa ver_mis_suscripciones)
 - Desuscribir de parqueaderos (usa desuscribirse_de_parqueadero)
+- **REPORTAR CUPOS**: Reportar que un parqueadero tiene cupos disponibles (usa reportar_cupos_disponibles)
+- Ver reportes activos del conductor (usa ver_mis_reportes)
 
 **Instrucciones importantes:**
 1. SIEMPRE usa las herramientas cuando el usuario solicite información o acciones
-2. Sé amigable, conciso y útil
-3. Usa emojis cuando sea apropiado
-4. NO REPITAS el saludo si ya hay conversación previa
-5. Responde en español de Colombia
-6. Si el usuario hace una solicitud directa, EJECUTA la herramienta correspondiente primero
+2. Para búsquedas de parqueaderos:
+   - Si el usuario menciona nombre exacto, usa buscar_parqueadero_por_nombre
+   - Si el usuario describe ubicación o características, USA buscar_parqueadero_semantico
+   - Ejemplos: "cerca al SD", "en la 72", "el del centro" -> buscar_parqueadero_semantico
+3. Para reportes de cupos:
+   - Si el usuario dice "hay cupos en [parqueadero]", usa reportar_cupos_disponibles
+   - Necesitas el parqueadero_id, búscalo primero si solo tienes el nombre
+4. Sé amigable, conciso y útil
+5. Usa emojis cuando sea apropiado
+6. NO REPITAS el saludo si ya hay conversación previa
+7. Responde en español de Colombia
+8. Si el usuario hace una solicitud directa, EJECUTA la herramienta correspondiente primero
 
 **Ejemplo:**
-Usuario: "Muéstrame todos los parqueaderos disponibles"
-Tú: [DEBES usar la herramienta ver_parqueaderos_disponibles()]
-Luego presentas la información que retorna la herramienta."""
+Usuario: "Busco el Tequendama que está cerca al SD"
+Tú: [DEBES usar buscar_parqueadero_semantico("Tequendama cerca al SD")]
+Luego presentas la información que retorna la herramienta.
+
+**Ejemplo de reporte:**
+Usuario: "Hay cupos en el Tequendama"
+Tú: [DEBES buscar el parqueadero primero, luego usar reportar_cupos_disponibles(parqueadero_id)]"""
 
     def _get_gestor_system_prompt(self) -> str:
         """Retorna el prompt del sistema para gestores"""
@@ -91,7 +107,8 @@ Tu rol es ayudar a los gestores a administrar su parqueadero y mantener actualiz
         # Obtener herramientas
         parqueadero_tools = create_parqueadero_tools(self.db)
         suscripcion_tools = create_suscripcion_tools(self.db, user_id)
-        tools = parqueadero_tools + suscripcion_tools
+        reporte_tools = create_reporte_tools(self.db, user_id)
+        tools = parqueadero_tools + suscripcion_tools + reporte_tools
         
         # Crear agente con LangGraph usando el prompt como system message
         agent = create_react_agent(

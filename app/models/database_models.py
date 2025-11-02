@@ -17,6 +17,7 @@ class Parqueadero(BaseModel):
     rango_cupos: Optional[str] = None  # Nuevo campo para almacenar el rango
     estado_ocupacion: Optional[str] = None  # Descripción del estado (lleno, pocos cupos, etc.)
     ultima_actualizacion: Optional[str] = None
+    similarity_score: Optional[float] = None  # Para búsquedas semánticas
     class Config:
         allow_population_by_field_name = True
 
@@ -42,6 +43,18 @@ class Suscripcion(BaseModel):
     parqueadero_id: Optional[str] = None  # Si es None, está suscrito a todos los parqueaderos
     fecha_suscripcion: Optional[str] = None
     activa: bool = True
+    
+    class Config:
+        allow_population_by_field_name = True
+
+
+class ReporteParqueadero(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), alias="_id")
+    parqueadero_id: str  # ID del parqueadero reportado
+    conductor_id: str  # WhatsApp ID del conductor que reportó
+    fecha_reporte: Optional[str] = None  # Timestamp del reporte
+    tipo_reporte: str = "cupos_disponibles"  # Tipo de reporte
+    procesado: bool = False  # Si ya se procesó y activó cupos
     
     class Config:
         allow_population_by_field_name = True

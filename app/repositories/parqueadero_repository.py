@@ -1,9 +1,11 @@
 from app.repositories.base_repository import BaseRepository
 from app.models.database_models import Parqueadero
 from app.utils.tiempo_utils import obtener_tiempo_bogota
+
 class ParqueaderoRepository(BaseRepository):   
     def __init__(self, db):
           super().__init__(db, "parqueaderos", Parqueadero)
+          self._chroma_repo = None  # Lazy loading para evitar circular imports
 
     def find_by_name(self, name: str) -> Parqueadero:
         data = self.collection.find_one({"name": name})
@@ -11,11 +13,33 @@ class ParqueaderoRepository(BaseRepository):
             return self.model(**data)
         return None
     
+    def _get_chroma_repo(self):
+        """Lazy loading del repositorio de ChromaDB"""
+        if self._chroma_repo is None:
+            try:
+                from app.repositories.parqueadero_semantic_repository import ParqueaderoSemanticRepository
+                self._chroma_repo = ParqueaderoSemanticRepository(self.db)
+            except Exception as e:
+                print(f"⚠️ No se pudo inicializar ChromaDB: {e}")
+                self._chroma_repo = False  # Mark as failed
+        return self._chroma_repo if self._chroma_repo else None
+
     def create(self, data) -> Parqueadero | dict:
          if self.find_by_name(data["name"]):
              return {"error": "Parqueadero con este nombre ya existe"}
          data["ultima_actualizacion"] = obtener_tiempo_bogota()
-         return super().create(data)
+         parqueadero = super().create(data)
+         
+         # Sincronizar con ChromaDB
+         if isinstance(parqueadero, Parqueadero):
+             chroma_repo = self._get_chroma_repo()
+             if chroma_repo:
+                 try:
+                     chroma_repo.agregar_parqueadero(parqueadero)
+                 except Exception as e:
+                     print(f"⚠️ Error sincronizando con ChromaDB: {e}")
+         
+         return parqueadero
 
     def find_with_available_spots(self) -> list[Parqueadero]:
         documents = self.collection.find({"tiene_cupos": True}, sort=[("ultima_actualizacion", -1)])
@@ -45,7 +69,18 @@ class ParqueaderoRepository(BaseRepository):
             "ultima_actualizacion": obtener_tiempo_bogota()
         }
         self.collection.update_one({"_id": parking_id}, {"$set": update_data})
-        return self.find_by_id(parking_id)
+        parqueadero = self.find_by_id(parking_id)
+        
+        # Sincronizar con ChromaDB
+        if parqueadero:
+            chroma_repo = self._get_chroma_repo()
+            if chroma_repo:
+                try:
+                    chroma_repo.actualizar_parqueadero(parqueadero)
+                except Exception as e:
+                    print(f"⚠️ Error sincronizando con ChromaDB: {e}")
+        
+        return parqueadero
     
     def actualizar_cupos_con_notificacion(self, parking_id: str, cupos_libres: str, tiene_cupos: bool, 
                                           rango_cupos: str, estado_ocupacion: str, notification_service) -> dict:

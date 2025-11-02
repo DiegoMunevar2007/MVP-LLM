@@ -18,6 +18,30 @@ app = FastAPI(
     version="1.0.0"
 )
 
+@app.on_event("startup")
+async def startup_event():
+    """
+    Evento de inicio de la aplicación
+    Sincroniza ChromaDB con MongoDB al arrancar
+    """
+    print("🚀 Iniciando aplicación...")
+    
+    try:
+        # Sincronizar ChromaDB con MongoDB
+        print("🔄 Sincronizando parqueaderos con ChromaDB...")
+        from app.repositories.parqueadero_semantic_repository import ParqueaderoSemanticRepository
+        
+        db = get_db()
+        semantic_repo = ParqueaderoSemanticRepository(db)
+        count = semantic_repo.sincronizar_todo()
+        
+        print(f"✅ ChromaDB sincronizado: {count} parqueaderos")
+        
+    except Exception as e:
+        print(f"⚠️ Error sincronizando ChromaDB (la app continuará funcionando): {e}")
+        import traceback
+        traceback.print_exc()
+
 # Montar archivos estáticos
 static_path = Path(__file__).parent / "static"
 if static_path.exists():
@@ -96,10 +120,6 @@ async def terms_of_service():
         content = f.read()
     
     return HTMLResponse(content=content, status_code=200)
-
-# @app.get("/get-db")
-# async def get_db_info(db = Depends(get_db)):
-#     return db.list_collection_names()
 
 @app.post("/crear-usuario", deprecated=True)
 async def crear_usuario(usuario_crear: User, db = Depends(get_db)):

@@ -4,7 +4,6 @@ Servicio especializado para consulta de parqueaderos por conductores
 from app.services.message.mensaje_parqueadero_service import MensajeParqueaderoService
 from app.services.message.mensaje_error_service import MensajeErrorService
 from app.repositories.parqueadero_repository import ParqueaderoRepository
-from app.logic.parqueaderos import obtener_parqueaderos_con_cupos
 import app.logic.sesion as sesion
 
 
@@ -23,7 +22,7 @@ class ConductorParqueaderoService:
     def consultar_parqueaderos(self, user_id: str, pagina: int = 1):
         """Muestra parqueaderos con cupos disponibles con detalles y paginación"""
         self.mensaje_parqueadero_service.mostrar_consultando_parqueaderos(user_id)
-        parqueaderos = obtener_parqueaderos_con_cupos(self.db)
+        parqueaderos = self.parqueadero_repo.find_with_available_spots()
         
         if parqueaderos:
             # Enviar lista interactiva con opción de ver detalles y paginación
