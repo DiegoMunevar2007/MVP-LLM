@@ -42,6 +42,10 @@ class WhatsAppMessageService:
         """Envía mensaje de bienvenida a nuevos usuarios"""
         self.bienvenida_service.enviar_bienvenida(user_id)
     
+    def enviar_bienvenida_gestor(self, user_id: str):
+        """Envía mensaje de bienvenida a nuevos gestores"""
+        self.bienvenida_service.enviar_bienvenida_gestor(user_id)
+    
     def solicitar_nombre(self, user_id: str):
         """Solicita el nombre para completar el registro"""
         self.bienvenida_service.solicitar_nombre(user_id)
@@ -49,6 +53,10 @@ class WhatsAppMessageService:
     def confirmar_registro(self, user_id: str, nombre: str):
         """Confirma el registro exitoso"""
         self.bienvenida_service.confirmar_registro(user_id, nombre)
+    
+    def confirmar_registro_gestor(self, user_id: str, nombre: str):
+        """Confirma el registro exitoso de un gestor"""
+        self.bienvenida_service.confirmar_registro_gestor(user_id, nombre)
     
     def saludar_usuario_registrado(self, user_id: str, nombre: str):
         """Saluda a un usuario ya registrado"""

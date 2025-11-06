@@ -56,7 +56,6 @@ def create_parqueadero_tools(db):
             resultado += f"   📍 {p.ubicacion}\n"
             resultado += f"   🚗 Cupos: {cupos}\n"
             resultado += f"   📊 Estado: {estado}\n"
-            resultado += f"   🆔 ID: {p.id}\n"
             if p.ultima_actualizacion:
                 resultado += f"   🕐 Actualizado: {p.ultima_actualizacion}\n"
             resultado += "\n"

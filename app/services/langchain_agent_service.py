@@ -14,6 +14,7 @@ from app.tools.suscripcion_tools import create_suscripcion_tools
 from app.tools.gestor_tools import create_gestor_tools
 from app.tools.reporte_tools import create_reporte_tools
 from app.repositories.user_repositories import UserRepository
+from app.repositories.message_repository import MessageRepository
 
 
 class LangChainAgentService:
@@ -25,6 +26,7 @@ class LangChainAgentService:
     def __init__(self, db):
         self.db = db
         self.user_repo = UserRepository(db)
+        self.message_repo = MessageRepository(db)
         
         # Configurar LLM de OpenAI
         self.llm = ChatOpenAI(
@@ -62,6 +64,7 @@ Tu rol es ayudar a conductores a encontrar parqueaderos con cupos disponibles y 
 2. Para búsquedas de parqueaderos:
    - Si el usuario menciona nombre exacto, usa buscar_parqueadero_por_nombre
    - Si el usuario describe ubicación o características, USA buscar_parqueadero_semantico
+   - Si el usuario pregunta "qué parqueaderos tienen cupos", "cuál tiene cupos", "hay otro", etc. -> USA ver_parqueaderos_disponibles
    - Ejemplos: "cerca al SD", "en la 72", "el del centro" -> buscar_parqueadero_semantico
 3. Para reportes de cupos:
    - Si el usuario dice "hay cupos en [parqueadero]", usa reportar_cupos_disponibles
@@ -71,11 +74,27 @@ Tu rol es ayudar a conductores a encontrar parqueaderos con cupos disponibles y 
 6. NO REPITAS el saludo si ya hay conversación previa
 7. Responde en español de Colombia
 8. Si el usuario hace una solicitud directa, EJECUTA la herramienta correspondiente primero
+9. Nunca devuelvas el ID de los parqueaderos en la respuesta al usuario, solo la información relevante
+10. SIEMPRE responde con la información actual de las herramientas, nunca inventes parqueaderos
+
+**Patrones que DEBEN usar ver_parqueaderos_disponibles:**
+- "qué parqueaderos tienen cupos"
+- "cuál tiene cupos"
+- "hay otro parqueadero"
+- "¿ningún otro?"
+- "cuáles están disponibles"
+- "dime todos los parqueaderos"
+- "ve qué hay disponible"
 
 **Ejemplo:**
 Usuario: "Busco el Tequendama que está cerca al SD"
 Tú: [DEBES usar buscar_parqueadero_semantico("Tequendama cerca al SD")]
 Luego presentas la información que retorna la herramienta.
+
+**Ejemplo de consulta de disponibles:**
+Usuario: "¿Ningún otro parqueadero?"
+Tú: [DEBES usar ver_parqueaderos_disponibles()]
+Luego presentas el resultado.
 
 **Ejemplo de reporte:**
 Usuario: "Hay cupos en el Tequendama"
@@ -104,18 +123,25 @@ Tu rol es ayudar a los gestores a administrar su parqueadero y mantener actualiz
     def _create_conductor_agent(self, user_id: str):
         """Crea un agente especializado para conductores usando LangGraph"""
         
+        # Obtener información del usuario
+        usuario = self.user_repo.find_by_id(user_id)
+        nombre_usuario = usuario.name if usuario and usuario.name else "Usuario"
+        
         # Obtener herramientas
         parqueadero_tools = create_parqueadero_tools(self.db)
         suscripcion_tools = create_suscripcion_tools(self.db, user_id)
         reporte_tools = create_reporte_tools(self.db, user_id)
         tools = parqueadero_tools + suscripcion_tools + reporte_tools
         
+        # Crear prompt personalizado con el nombre del usuario
+        system_prompt = f"{self._get_conductor_system_prompt()}\n\n**INFORMACIÓN DEL USUARIO:** Estás hablando con {nombre_usuario}."
+        
         # Crear agente con LangGraph usando el prompt como system message
         agent = create_react_agent(
             model=self.llm,
             tools=tools,
             checkpointer=self.memory,
-            prompt=self._get_conductor_system_prompt()
+            prompt=system_prompt
         )
         
         return agent
@@ -123,17 +149,24 @@ Tu rol es ayudar a los gestores a administrar su parqueadero y mantener actualiz
     def _create_gestor_agent(self, user_id: str):
         """Crea un agente especializado para gestores usando LangGraph"""
         
+        # Obtener información del usuario
+        usuario = self.user_repo.find_by_id(user_id)
+        nombre_usuario = usuario.name if usuario and usuario.name else "Gestor"
+        
         # Obtener herramientas
         gestor_tools = create_gestor_tools(self.db, user_id)
         parqueadero_tools = create_parqueadero_tools(self.db)
         tools = gestor_tools + [parqueadero_tools[1]]  # obtener_detalle_parqueadero
+        
+        # Crear prompt personalizado con el nombre del usuario
+        system_prompt = f"{self._get_gestor_system_prompt()}\n\n**INFORMACIÓN DEL GESTOR:** Estás hablando con {nombre_usuario}."
         
         # Crear agente con LangGraph usando el prompt como system message
         agent = create_react_agent(
             model=self.llm,
             tools=tools,
             checkpointer=self.memory,
-            prompt=self._get_gestor_system_prompt()
+            prompt=system_prompt
         )
         
         return agent
@@ -141,6 +174,7 @@ Tu rol es ayudar a los gestores a administrar su parqueadero y mantener actualiz
     def process_message(self, user_id: str, message: str, rol: str) -> str:
         """
         Procesa un mensaje del usuario usando el agente LangChain apropiado.
+        Carga los últimos 5 mensajes desde MongoDB y guarda el nuevo intercambio.
         
         Args:
             user_id: ID del usuario en WhatsApp
@@ -151,6 +185,9 @@ Tu rol es ayudar a los gestores a administrar su parqueadero y mantener actualiz
             str: Respuesta generada por el agente
         """
         try:
+            # Guardar el mensaje del usuario en MongoDB
+            self.message_repo.guardar_mensaje_usuario(user_id, message)
+            
             # Crear configuración de thread para el usuario
             config = {"configurable": {"thread_id": user_id}}
             
@@ -166,66 +203,89 @@ Tu rol es ayudar a los gestores a administrar su parqueadero y mantener actualiz
             
             agent = self.agents_cache[cache_key]
             
-            # Obtener información del usuario para el primer mensaje
-            state = agent.get_state(config)
-            if len(state.values.get("messages", [])) == 0:
-                usuario = self.user_repo.find_by_id(user_id)
-                if usuario and usuario.name:
-                    # Agregar contexto del nombre en el primer mensaje
-                    message = f"[Usuario: {usuario.name}] {message}"
+            # Cargar mensajes previos desde MongoDB (sin incluir el mensaje actual)
+            mensajes_previos = self.message_repo.obtener_ultimos_mensajes(user_id, limite=5)
             
-            # Ejecutar el agente
+            # Convertir mensajes de MongoDB a formato LangChain
+            langchain_messages = []
+            
+            # Cargar mensajes previos si existen
+            for msg in mensajes_previos:
+                if msg.rol == "user":
+                    langchain_messages.append(HumanMessage(content=msg.contenido))
+                elif msg.rol == "assistant":
+                    langchain_messages.append(AIMessage(content=msg.contenido))
+            
+            # Agregar el mensaje actual
+            langchain_messages.append(HumanMessage(content=message))
+            
+            # Actualizar el estado del agente con los mensajes de MongoDB
+            if len(langchain_messages) > 0:
+                agent.update_state(config, {"messages": langchain_messages})
+            
+            # Ejecutar el agente con el nuevo mensaje
             result = agent.invoke(
-                {"messages": [HumanMessage(content=message)]},
+                {"messages": langchain_messages},
                 config=config
             )
             
             # Extraer la respuesta del agente
             messages = result.get("messages", [])
+            respuesta = "No pude procesar tu mensaje. Por favor, intenta nuevamente."
+            
             if messages:
                 last_message = messages[-1]
                 if isinstance(last_message, AIMessage):
-                    return last_message.content
+                    respuesta = last_message.content
             
-            return "No pude procesar tu mensaje. Por favor, intenta nuevamente."
+            # Guardar la respuesta del asistente en MongoDB
+            self.message_repo.guardar_mensaje_asistente(user_id, respuesta)
+            
+            # Desactivar mensajes antiguos para mantener solo los últimos 10 activos
+            # (los mensajes no se eliminan, solo se marcan como inactivos)
+            desactivados = self.message_repo.desactivar_mensajes_antiguos(user_id, mantener_ultimos=10)
+            if desactivados > 0:
+                print(f"📦 Archivado automático: {desactivados} mensajes marcados como inactivos para {user_id}")
+            
+            return respuesta
             
         except Exception as e:
             print(f"Error procesando mensaje con agente LangChain: {e}")
             import traceback
             traceback.print_exc()
-            return f"❌ Ocurrió un error al procesar tu mensaje. Por favor, intenta nuevamente."
+            return "❌ Ocurrió un error al procesar tu mensaje. Por favor, intenta nuevamente."
     
     def reset_conversation(self, user_id: str):
-        """Reinicia la conversación de un usuario"""
+        """Reinicia la conversación de un usuario y marca los mensajes como inactivos en MongoDB"""
         # Eliminar del cache
-        for key in list(self.agents_cache.keys()):
-            if key.startswith(user_id):
-                del self.agents_cache[key]
+        keys_to_delete = [key for key in self.agents_cache.keys() if key.startswith(user_id)]
+        for key in keys_to_delete:
+            del self.agents_cache[key]
+        
+        # Marcar todos los mensajes como inactivos (no se eliminan, se archivan)
+        mensajes_desactivados = self.message_repo.limpiar_conversacion(user_id)
+        print(f"� Conversación reiniciada para {user_id}. {mensajes_desactivados} mensajes archivados (marcados como inactivos).")
     
     def get_conversation_context(self, user_id: str) -> List[Dict[str, str]]:
         """
-        Obtiene el contexto de la conversación actual del usuario.
+        Obtiene el contexto de los últimos 5 mensajes de la conversación del usuario desde MongoDB.
         
         Returns:
-            List[Dict]: Lista de mensajes con formato {"role": "user/assistant", "content": "..."}
+            List[Dict]: Lista de máximo 5 mensajes con formato {"role": "user/assistant", "content": "..."}
         """
         try:
-            config = {"configurable": {"thread_id": user_id}}
-            # Buscar el agente en cache
-            for key, agent in self.agents_cache.items():
-                if key.startswith(user_id):
-                    state = agent.get_state(config)
-                    messages = state.values.get("messages", [])
-                    
-                    context = []
-                    for msg in messages:
-                        if isinstance(msg, HumanMessage):
-                            context.append({"role": "user", "content": msg.content})
-                        elif isinstance(msg, AIMessage):
-                            context.append({"role": "assistant", "content": msg.content})
-                    
-                    return context
+            # Obtener mensajes desde MongoDB
+            mensajes = self.message_repo.obtener_ultimos_mensajes(user_id, limite=5)
             
-            return []
-        except:
+            context = []
+            for msg in mensajes:
+                context.append({
+                    "role": msg.rol,
+                    "content": msg.contenido,
+                    "timestamp": msg.timestamp
+                })
+            
+            return context
+        except Exception as e:
+            print(f"Error obteniendo contexto de conversación: {e}")
             return []

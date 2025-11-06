@@ -111,6 +111,24 @@ class ReporteRepository(BaseRepository):
         
         return result.modified_count
     
+    def limpiar_reportes_parqueadero(self, parqueadero_id: str) -> int:
+        """
+        Elimina todos los reportes procesados de un parqueadero para reiniciar el contador.
+        Se ejecuta después de alcanzar 5 reportes para permitir un nuevo ciclo de reportes.
+        
+        Args:
+            parqueadero_id: ID del parqueadero
+            
+        Returns:
+            int: Número de reportes eliminados
+        """
+        result = self.collection.delete_many({
+            "parqueadero_id": parqueadero_id,
+            "procesado": True
+        })
+        
+        return result.deleted_count
+    
     def obtener_conductores_reportantes(self, parqueadero_id: str) -> List[str]:
         """
         Obtiene la lista de IDs de conductores que reportaron un parqueadero

@@ -64,8 +64,11 @@ def create_reporte_tools(db, user_id: str):
                 notification_service=notification_service
             )
             
-            # Marcar reportes como procesados
+            # Marcar reportes como procesados (reiniciando el contador)
             reporte_repo.marcar_reportes_como_procesados(parqueadero_id)
+            
+            # Limpiar todos los reportes del parqueadero para reiniciar el contador
+            reporte_repo.limpiar_reportes_parqueadero(parqueadero_id)
             
             notificaciones_enviadas = resultado.get('notificaciones_enviadas', 0)
             
@@ -73,6 +76,7 @@ def create_reporte_tools(db, user_id: str):
                    f"✅ Se alcanzaron **5 reportes** para **{parqueadero.name}**\n\n" \
                    f"🚗 **El parqueadero ha sido activado** con cupos disponibles\n" \
                    f"📢 Se enviaron **{notificaciones_enviadas} notificaciones** a los suscriptores\n\n" \
+                   f"🔄 El contador de reportes se ha reiniciado a 0\n\n" \
                    f"¡Gracias por tu colaboración! 🙏"
         else:
             reportes_faltantes = 5 - reportes_actuales

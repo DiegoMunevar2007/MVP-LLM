@@ -58,3 +58,15 @@ class ReporteParqueadero(BaseModel):
     
     class Config:
         allow_population_by_field_name = True
+
+
+class MensajeConversacion(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), alias="_id")
+    user_id: str  # WhatsApp ID del usuario
+    rol: str  # "user" o "assistant"
+    contenido: str  # Contenido del mensaje
+    timestamp: str  # Timestamp del mensaje para ordenar
+    activo: bool = True  # Indica si el mensaje está activo (se usa en la memoria del agente)
+    
+    class Config:
+        allow_population_by_field_name = True

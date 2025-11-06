@@ -64,18 +64,19 @@ Gestiona tus suscripciones de notificaciones. Escribe el número de tu opción:
         success = self.interactive_service.send_gestor_menu(user_id)
         if not success:
             # Fallback al mensaje de texto tradicional
-            menu = """🏢 *Menú Gestor de Parqueadero*
+            menu = """🏢 *Panel de Gestión de Parqueadero*
 
-Panel de administración. Escribe el número de tu opción:
+¡Hola! Aquí puedes administrar tu parqueadero. Escribe el número de tu opción:
 
 1️⃣ Ver Información
-   ℹ️ Consulta el estado de tu parqueadero
-
+   ℹ️ Consulta el estado actual de tu parqueadero
+   
 2️⃣ Actualizar Cupos
    📝 Modifica la disponibilidad de espacios
-
+   🔔 Notificará automáticamente a conductores suscritos
+   
 3️⃣ Salir
-   👋 Cerrar sesión del sistema"""
+   👋 Cerrar sesión"""
             send_message(user_id, menu)
     
     def mostrar_menu_cupos(self, user_id: str):
