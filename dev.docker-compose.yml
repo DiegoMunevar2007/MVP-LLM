@@ -1,0 +1,56 @@
+services:
+  mongo:
+    image: mongo:latest
+    container_name: mongo
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password
+      - MONGO_INITDB_DATABASE=mvp
+    ports:
+      - "27000:27017"
+    volumes:
+      - ./data/db:/data/db
+
+  chromadb:
+    image: chromadb/chroma:0.5.23
+    container_name: chromadb
+    ports:
+      - "8001:8000"  # Puerto externo:interno (ChromaDB usa 8000 por defecto)
+    volumes:
+      - ./data/chroma:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+
+  fastapi:
+    build:
+      context: ./app/
+      dockerfile: dev.Dockerfile
+
+    container_name: fastapi
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app
+    environment:
+      - MONGO_URL=${MONGO_URL}
+      - PHONE_NUMBER_ID=${PHONE_NUMBER_ID}
+      - WHATSAPP_TOKEN=${WHATSAPP_TOKEN}
+      - COHERE_API_KEY=${COHERE_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000  # Puerto interno de ChromaDB
+    depends_on:
+      - mongo
+      - chromadb
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: ngrok
+    command: [ "http", "fastapi:8000", "--log", "stdout", "--log-format", "logfmt", "--domain=${NGROK_DOMAIN}" ]
+    ports:
+      - "4040:4040"
+    depends_on:
+      - fastapi
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
