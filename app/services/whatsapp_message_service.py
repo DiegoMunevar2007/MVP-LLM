@@ -49,10 +49,10 @@ class WhatsAppMessageService:
     def solicitar_nombre(self, user_id: str):
         """Solicita el nombre para completar el registro"""
         self.bienvenida_service.solicitar_nombre(user_id)
-    
-    def confirmar_registro(self, user_id: str, nombre: str):
+
+    def confirmar_registro(self, user_id: str, nombre: str, codigo_referido: str):
         """Confirma el registro exitoso"""
-        self.bienvenida_service.confirmar_registro(user_id, nombre)
+        self.bienvenida_service.confirmar_registro(user_id, nombre, codigo_referido)
     
     def confirmar_registro_gestor(self, user_id: str, nombre: str):
         """Confirma el registro exitoso de un gestor"""
