@@ -151,9 +151,34 @@ def create_parqueadero_tools(db):
         
         return resultado
     
+    @tool
+    def buscar_todos_los_parqueaderos() -> List[Dict[str, Any]]:
+        """
+        Obtiene una lista de todos los parqueaderos en la base de datos.
+        
+        Returns:
+            List[Dict[str, Any]]: Lista de parqueaderos con detalles básicos
+        """
+        parqueaderos = parqueadero_repo.find_all()
+        
+        resultado = []
+        for p in parqueaderos:
+            parqueadero_info = {
+                "name": p.name,
+                "ubicacion": p.ubicacion,
+                "capacidad": p.capacidad,
+                "cupos_libres": p.cupos_libres,
+                "tiene_cupos": p.tiene_cupos,
+                "ultima_actualizacion": p.ultima_actualizacion
+            }
+            resultado.append(parqueadero_info)
+        
+        return resultado
+    
     return [
         ver_parqueaderos_disponibles,
         obtener_detalle_parqueadero,
         buscar_parqueadero_por_nombre,
+        buscar_todos_los_parqueaderos,
         buscar_parqueadero_semantico
     ]
