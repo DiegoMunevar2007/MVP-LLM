@@ -46,6 +46,10 @@ class WhatsAppMessageService:
         """Envía mensaje de bienvenida a nuevos gestores"""
         self.bienvenida_service.enviar_bienvenida_gestor(user_id)
     
+    def solicitar_codigo_referido(self, user_id: str):
+        """Solicita código de referido al nuevo usuario (opcional)"""
+        self.bienvenida_service.solicitar_codigo_referido(user_id)
+    
     def solicitar_nombre(self, user_id: str):
         """Solicita el nombre para completar el registro"""
         self.bienvenida_service.solicitar_nombre(user_id)
