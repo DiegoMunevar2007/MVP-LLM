@@ -39,16 +39,31 @@ Solo necesito tu nombre para empezar. ¿Cuál es? 😊"""
         """Solicita el nombre para completar el registro"""
         send_message(user_id, "Por favor, envía tu nombre para completar el registro 📝")
     
-    def confirmar_registro(self, user_id: str, nombre: str):
-        """Confirma el registro exitoso"""
+    def solicitar_codigo_referido(self, user_id: str):
+        """Solicita código de referido al nuevo usuario (opcional)"""
+        mensaje = """🎁 *¿Tienes un código de referido?*
+
+Si alguien te compartió SpotBot, ingresa su código ahora para que reciba días premium gratis.
+
+📝 *Código de 6 caracteres* (Ej: SPOT01)
+
+Si no tienes código, escribe *"SALTAR"* para continuar."""
+        send_message(user_id, mensaje)
+    
+    def confirmar_registro(self, user_id: str, nombre: str, codigo_referido: str = None):
+        """Confirma el registro exitoso con código de referido"""
         mensaje_confirmacion = f"""✅ ¡Excelente {nombre}!
 
 Ya estás registrado en nuestro sistema. Ahora puedes:
 
 • Buscar parqueaderos con cupos disponibles
-• Recibir notificaciones de cupos libres
+• Recibir notificaciones de cupos libres (Premium) 🌟
 • Reportar cupos disponibles a otros conductores
 • Gestionar tus suscripciones
+
+🎁 *Tu código de referido:* `{codigo_referido}`
+
+Compártelo con tus amigos y obtén *7 días gratis de notificaciones premium* por cada referido que se registre.
 
 ¿En qué puedo ayudarte? 🚗💨"""
         send_message(user_id, mensaje_confirmacion)

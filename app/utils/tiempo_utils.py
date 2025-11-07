@@ -1,8 +1,10 @@
 """
 Utilidades para manejo de fechas y tiempo con zona horaria de Bogotá
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
+import random
+import string
 
 def obtener_tiempo_bogota() -> str:
     """
@@ -99,3 +101,64 @@ def tiempo_relativo(timestamp: str) -> str:
             
     except (ValueError, TypeError):
         return "Desconocido"
+
+def generar_codigo_referido() -> str:
+    """
+    Genera un código alfanumérico único de 6 caracteres para el programa de referidos
+    Returns:
+        str: Código de 6 caracteres (mayúsculas y números)
+    """
+    caracteres = string.ascii_uppercase + string.digits
+    return ''.join(random.choices(caracteres, k=6))
+
+def calcular_fecha_expiracion_premium(dias: int) -> str:
+    """
+    Calcula la fecha de expiración del premium sumando días a la fecha actual
+    Args:
+        dias (int): Número de días a sumar
+    Returns:
+        str: Timestamp de expiración en formato "YYYY-MM-DD HH:MM:SS"
+    """
+    zona_bogota = pytz.timezone('America/Bogota')
+    tiempo_actual = datetime.now(zona_bogota)
+    fecha_expiracion = tiempo_actual + timedelta(days=dias)
+    return fecha_expiracion.strftime("%Y-%m-%d %H:%M:%S")
+
+def extender_fecha_expiracion_premium(fecha_actual: str, dias_adicionales: int) -> str:
+    """
+    Extiende una fecha de expiración existente sumando días adicionales
+    Args:
+        fecha_actual (str): Fecha actual de expiración en formato "YYYY-MM-DD HH:MM:SS"
+        dias_adicionales (int): Días a sumar
+    Returns:
+        str: Nueva fecha de expiración
+    """
+    try:
+        zona_bogota = pytz.timezone('America/Bogota')
+        dt = datetime.strptime(fecha_actual, "%Y-%m-%d %H:%M:%S")
+        dt = zona_bogota.localize(dt)
+        nueva_fecha = dt + timedelta(days=dias_adicionales)
+        return nueva_fecha.strftime("%Y-%m-%d %H:%M:%S")
+    except (ValueError, TypeError):
+        # Si hay error, calcular desde ahora
+        return calcular_fecha_expiracion_premium(dias_adicionales)
+
+def verificar_premium_activo(fecha_expiracion: str) -> bool:
+    """
+    Verifica si un usuario tiene premium activo comparando la fecha de expiración
+    Args:
+        fecha_expiracion (str): Fecha de expiración en formato "YYYY-MM-DD HH:MM:SS"
+    Returns:
+        bool: True si el premium está activo, False si expiró
+    """
+    if not fecha_expiracion:
+        return False
+    
+    try:
+        zona_bogota = pytz.timezone('America/Bogota')
+        dt_expiracion = datetime.strptime(fecha_expiracion, "%Y-%m-%d %H:%M:%S")
+        dt_expiracion = zona_bogota.localize(dt_expiracion)
+        ahora = datetime.now(zona_bogota)
+        return ahora < dt_expiracion
+    except (ValueError, TypeError):
+        return False

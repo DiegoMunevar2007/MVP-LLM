@@ -27,6 +27,14 @@ class User(BaseModel):
     rol: Optional[str] = None  # "conductor" o "gestor_parqueadero"
     estado_chat: EstadoChat = EstadoChat()
     estado_registro: Optional[str] = None  # "esperando_nombre", "completo", etc.
+    
+    # Growth Loop - Sistema de referidos y premium
+    es_premium: bool = False  # Indica si el usuario tiene acceso premium
+    fecha_expiracion_premium: Optional[str] = None  # Timestamp de expiración del premium
+    codigo_referido: Optional[str] = None  # Código único de 6 caracteres para referir
+    referido_por: Optional[str] = None  # Código de quien lo refirió
+    numero_referidos: int = 0  # Contador de personas que usaron su código
+    
     class Config:
         allow_population_by_field_name = True  # Permite usar "id" y "_id" indistintamente
 

@@ -54,26 +54,57 @@ def handle_nuevo_usuario(user_id: str, db, message_service: WhatsAppMessageServi
     """
     sesion.crear_usuario(user_id, db)
     message_service.enviar_bienvenida(user_id)
-    message_service.solicitar_nombre(user_id)
-    sesion.actualizar_estado_registro(user_id, "esperando_nombre", db)
+    message_service.solicitar_codigo_referido(user_id)
+    sesion.actualizar_estado_registro(user_id, "esperando_codigo_referido", db)
     return None
 
 def handle_usuario_nombre(msg: Message, db, message_service: WhatsAppMessageService):
     """
     Maneja la actualización del nombre para usuarios en proceso de registro
     """
-    # Para registro de nombre, solo aceptar mensajes de texto
+    usuario = sesion.obtener_usuario(msg.from_, db)
+    
+    # Para registro, solo aceptar mensajes de texto
     if msg.type == "text" and msg.text and msg.text.body:
-        # Actualizar nombre y completar registro
-        sesion.actualizar_nombre(msg.from_, msg.text.body, db)
+        texto = msg.text.body.strip()
         
-        # Obtener usuario actualizado
-        usuario = sesion.obtener_usuario(msg.from_, db)
-        if usuario and usuario.estado_registro == "completo":
-            message_service.confirmar_registro(msg.from_, usuario.name)
+        # Estado: esperando código de referido
+        if usuario.estado_registro == "esperando_codigo_referido":
+            if texto.upper() == "SALTAR":
+                # Usuario no tiene código, continuar al nombre
+                message_service.solicitar_nombre(msg.from_)
+                sesion.actualizar_estado_registro(msg.from_, "esperando_nombre", db)
+            else:
+                # Procesar código de referido
+                resultado = sesion.procesar_codigo_referido(msg.from_, texto.upper(), db)
+                
+                if resultado["exito"]:
+                    # Código válido
+                    mensaje_exito = f"✅ {resultado['mensaje']}\n\nAhora, ¿cuál es tu nombre? 😊"
+                    send_message(msg.from_, mensaje_exito)
+                    sesion.actualizar_estado_registro(msg.from_, "esperando_nombre", db)
+                else:
+                    # Código inválido
+                    mensaje_error = f"❌ {resultado['mensaje']}\n\nIntenta nuevamente o escribe *SALTAR* para continuar sin código."
+                    send_message(msg.from_, mensaje_error)
+            
+            return None
+        
+        # Estado: esperando nombre
+        elif usuario.estado_registro == "esperando_nombre":
+            # Actualizar nombre
+            sesion.actualizar_nombre(msg.from_, texto, db)
+            
+            # Generar código de referido para el nuevo usuario
+            codigo_generado = sesion.generar_y_asignar_codigo_referido(msg.from_, db)
+            
+            # Obtener usuario actualizado
+            usuario = sesion.obtener_usuario(msg.from_, db)
+            if usuario and usuario.estado_registro == "completo":
+                message_service.confirmar_registro(msg.from_, usuario.name, codigo_generado)
+                return usuario
+            
             return usuario
-        
-        return usuario
     
     return None
 

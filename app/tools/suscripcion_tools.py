@@ -5,6 +5,7 @@ from langchain_core.tools import tool
 from typing import List, Optional
 from app.repositories.suscripcion_repository import SuscripcionRepository
 from app.repositories.parqueadero_repository import ParqueaderoRepository
+from app.services.premium_service import PremiumService
 
 
 def create_suscripcion_tools(db, user_id: str):
@@ -12,12 +13,13 @@ def create_suscripcion_tools(db, user_id: str):
     
     suscripcion_repo = SuscripcionRepository(db)
     parqueadero_repo = ParqueaderoRepository(db)
+    premium_service = PremiumService(db)
     
     @tool
     def suscribirse_a_parqueadero(parqueadero_id: str) -> str:
         """
         Suscribe al conductor a un parqueadero específico para recibir notificaciones
-        cuando haya cupos disponibles.
+        cuando haya cupos disponibles. REQUIERE PREMIUM.
         
         Args:
             parqueadero_id: ID del parqueadero al que se desea suscribir
@@ -25,6 +27,12 @@ def create_suscripcion_tools(db, user_id: str):
         Returns:
             str: Mensaje de confirmación o error
         """
+        # PAYWALL - Verificar acceso premium
+        acceso = premium_service.verificar_acceso_premium(user_id)
+        if not acceso["tiene_acceso"]:
+            premium_service.mostrar_paywall_notificaciones(user_id)
+            return "🔒 Las notificaciones son una función Premium. Revisa el mensaje anterior para saber cómo obtener acceso gratis."
+        
         # Verificar que el parqueadero existe
         parqueadero = parqueadero_repo.find_by_id(parqueadero_id)
         if not parqueadero:
@@ -40,17 +48,23 @@ def create_suscripcion_tools(db, user_id: str):
         # Crear suscripción
         suscripcion_repo.create_suscripcion(user_id, parqueadero_id)
         
-        return f"✅ ¡Suscripción exitosa!\n\nAhora recibirás notificaciones de **{parqueadero.name}** cuando haya cupos disponibles."
+        return f"✅ ¡Suscripción exitosa!\n\nAhora recibirás notificaciones de **{parqueadero.name}** cuando haya cupos disponibles.\n\n⏰ Premium activo: {acceso['dias_restantes']} días restantes"
     
     @tool
     def suscribirse_a_todos() -> str:
         """
         Suscribe al conductor a todos los parqueaderos del sistema.
-        Recibirá notificaciones de cualquier parqueadero que tenga cupos disponibles.
+        Recibirá notificaciones de cualquier parqueadero que tenga cupos disponibles. REQUIERE PREMIUM.
         
         Returns:
             str: Mensaje de confirmación o error
         """
+        # PAYWALL - Verificar acceso premium
+        acceso = premium_service.verificar_acceso_premium(user_id)
+        if not acceso["tiene_acceso"]:
+            premium_service.mostrar_paywall_notificaciones(user_id)
+            return "🔒 Las notificaciones son una función Premium. Revisa el mensaje anterior para saber cómo obtener acceso gratis."
+        
         # Verificar si ya está suscrito a todos
         suscripcion_existente = suscripcion_repo.find_active_suscripcion(
             user_id, None
@@ -64,7 +78,7 @@ def create_suscripcion_tools(db, user_id: str):
         # Crear suscripción global
         suscripcion_repo.create_suscripcion(user_id, None)
         
-        return "✅ ¡Suscripción exitosa!\n\nAhora recibirás notificaciones de TODOS los parqueaderos cuando tengan cupos disponibles."
+        return f"✅ ¡Suscripción exitosa!\n\nAhora recibirás notificaciones de TODOS los parqueaderos cuando tengan cupos disponibles.\n\n⏰ Premium activo: {acceso['dias_restantes']} días restantes"
     
     @tool
     def ver_mis_suscripciones() -> str:
@@ -143,10 +157,23 @@ def create_suscripcion_tools(db, user_id: str):
         
         return f"✅ Se han cancelado {cantidad} suscripción(es).\n\nYa no recibirás notificaciones de ningún parqueadero."
     
+    @tool
+    def ver_estadisticas_referidos() -> str:
+        """
+        Muestra las estadísticas del programa de referidos: código personal, 
+        número de referidos, días premium ganados y estado actual.
+        
+        Returns:
+            str: Estadísticas completas del programa de referidos
+        """
+        premium_service.mostrar_estadisticas_referidos(user_id)
+        return "✅ Te he enviado tus estadísticas del programa de referidos."
+    
     return [
         suscribirse_a_parqueadero,
         suscribirse_a_todos,
         ver_mis_suscripciones,
         desuscribirse_de_parqueadero,
-        desuscribirse_de_todos
+        desuscribirse_de_todos,
+        ver_estadisticas_referidos
     ]

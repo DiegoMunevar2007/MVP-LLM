@@ -5,6 +5,7 @@ from langchain_core.tools import tool
 from app.repositories.reporte_repository import ReporteRepository
 from app.repositories.parqueadero_repository import ParqueaderoRepository
 from app.services.notification_service import NotificationService
+from app.services.premium_service import PremiumService
 
 
 def create_reporte_tools(db, user_id: str):
@@ -13,6 +14,7 @@ def create_reporte_tools(db, user_id: str):
     reporte_repo = ReporteRepository(db)
     parqueadero_repo = ParqueaderoRepository(db)
     notification_service = NotificationService(db)
+    premium_service = PremiumService(db)
     
     @tool
     def reportar_cupos_disponibles(parqueadero_id: str) -> str:
@@ -72,6 +74,9 @@ def create_reporte_tools(db, user_id: str):
             
             notificaciones_enviadas = resultado.get('notificaciones_enviadas', 0)
             
+            # GROWTH LOOP CTA - Recordar código de referido después del reporte
+            premium_service.recordar_codigo_referido(user_id)
+            
             return f"🎉 **¡Reporte registrado exitosamente!**\n\n" \
                    f"✅ Se alcanzaron **5 reportes** para **{parqueadero.name}**\n\n" \
                    f"🚗 **El parqueadero ha sido activado** con cupos disponibles\n" \
@@ -80,6 +85,10 @@ def create_reporte_tools(db, user_id: str):
                    f"¡Gracias por tu colaboración! 🙏"
         else:
             reportes_faltantes = 5 - reportes_actuales
+            
+            # GROWTH LOOP CTA - Recordar código de referido después del reporte
+            premium_service.recordar_codigo_referido(user_id)
+            
             return f"✅ **Reporte registrado exitosamente**\n\n" \
                    f"📍 Parqueadero: **{parqueadero.name}**\n" \
                    f"📊 Reportes actuales: **{reportes_actuales}/5**\n" \
